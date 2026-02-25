@@ -28,7 +28,7 @@
   --r:18px;
   --r2:14px;
 
-  --max: 1100px;
+  --max: 1000px;
 }
 
 /* Base */
@@ -420,39 +420,36 @@ li{margin: 6px 0; color: var(--muted)}
 }
 
 @media (max-width: 980px){
-  /* room for fixed bottom bar */
+  /* GEEN extra ruimte reserveren */
   .panel{
-    padding-bottom: 18px;
+    padding-bottom: 18px; /* normaal */
   }
 
-  /* Bottom action bar */
+  /* Knoppen gewoon in de flow (geen fixed bar) */
   .actions{
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50;
-
-    padding: 12px;
-    background: rgba(255,255,255,.92);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -10px 28px rgba(12,18,32,.10);
-
-    justify-content: space-between;
+    position: static;
+    padding: 0;
+    background: transparent;
+    border-top: 0;
+    box-shadow: none;
+    margin-top: 14px;
   }
 
+  /* Buttons: onder elkaar, lekker “app” en groot */
+  .actions{
+    flex-direction: column;
+  }
   .actions .btn{
-    flex: 1;
+    width: 100%;
     justify-content: center;
   }
 
-  /* Floating cart toggle pill */
+  /* Jouw lijst knopje mag blijven (drawer) */
   .cart-toggle{
     display:flex;
     position: fixed;
     right: 12px;
-    bottom: 76px;
+    bottom: 12px; /* lager nu, want geen bottom bar */
     z-index: 60;
 
     align-items:center;
@@ -478,7 +475,6 @@ li{margin: 6px 0; color: var(--muted)}
     font-weight: 950;
   }
 
-  /* Drawer backdrop */
   .drawer-backdrop{
     display:none;
     position: fixed;
@@ -487,7 +483,6 @@ li{margin: 6px 0; color: var(--muted)}
     background: rgba(11,18,32,.45);
   }
 
-  /* Sidebar becomes drawer */
   .sidebar{
     position: fixed;
     left: 0;
