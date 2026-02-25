@@ -213,4 +213,3 @@ body{
 @media (max-width: 980px){
   .products-split{grid-template-columns:1fr;}
 }
-.products-split .block{margin:0}
