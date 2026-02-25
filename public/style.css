@@ -445,24 +445,24 @@ li{margin: 6px 0; color: var(--muted)}
   }
 
   /* Jouw lijst knopje mag blijven (drawer) */
-  .cart-toggle{
-    display:flex;
-    position: fixed;
-    right: 12px;
-    bottom: 12px; /* lager nu, want geen bottom bar */
-    z-index: 60;
+ .cart-toggle{
+  display:flex;
+  position: relative;   /* NIET meer fixed */
+  right: auto;
+  bottom: auto;
+  margin-top: 10px;
 
-    align-items:center;
-    gap:10px;
+  align-items:center;
+  gap:10px;
 
-    padding: 10px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(12,18,32,.14);
-    background: #fff;
-    box-shadow: var(--shadow-2);
-    font-weight: 950;
-    cursor:pointer;
-  }
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(12,18,32,.14);
+  background: #fff;
+  box-shadow: var(--shadow-2);
+  font-weight: 950;
+  cursor:pointer;
+}
 
   .cart-toggle__count{
     min-width: 26px;
