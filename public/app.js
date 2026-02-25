@@ -26,50 +26,75 @@
     };
 
   const answers = {};
-  const selected = new Map(); // productId -> { ...product, qty }
-
+  const selected = new Map();
   let stepIndex = 0;
 
   // =========================================================
-  // AUTO IFRAME HEIGHT (dynamic per step)
+  // AUTO IFRAME HEIGHT (stable + anti-loop)
   // =========================================================
   const PARENT_ORIGIN = "https://www.lakopmaat.nl";
+  let lastSent = 0;
 
-  function sendHeight() {
-    try {
-      const h = Math.max(
-        document.body ? document.body.scrollHeight : 0,
-        document.documentElement ? document.documentElement.scrollHeight : 0
+  function measureHeight() {
+    // Use layout height, not scrollHeight (prevents runaway loops)
+    const el = document.getElementById("appRoot") || document.body;
+    const rect = el.getBoundingClientRect();
+    let h = Math.ceil(rect.height);
+
+    // fallback
+    if (!h || h < 300) {
+      h = Math.ceil(
+        Math.max(
+          document.documentElement ? document.documentElement.clientHeight : 0,
+          document.body ? document.body.clientHeight : 0
+        )
       );
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage(
-          { type: "LOM_IFRAME_HEIGHT", height: h },
-          PARENT_ORIGIN
-        );
-      }
+    }
+    return h;
+  }
+
+  function clampHeight(h) {
+    const isMobile = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
+    const MIN = isMobile ? 750 : 650;
+    const MAX = isMobile ? 2600 : 2200;
+    if (h < MIN) h = MIN;
+    if (h > MAX) h = MAX;
+    return h;
+  }
+
+  function sendHeight(force) {
+    try {
+      if (!window.parent || window.parent === window) return;
+
+      let h = clampHeight(measureHeight());
+
+      // only send when changed enough (anti-loop)
+      if (!force && Math.abs(h - lastSent) < 8) return;
+      lastSent = h;
+
+      window.parent.postMessage({ type: "LOM_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
     } catch (e) {}
   }
 
   function bumpHeight() {
-    // multiple ticks so layout/fonts can settle
-    setTimeout(sendHeight, 20);
-    setTimeout(sendHeight, 120);
-    setTimeout(sendHeight, 450);
+    setTimeout(() => sendHeight(false), 40);
+    setTimeout(() => sendHeight(false), 200);
+    setTimeout(() => sendHeight(false), 600);
   }
 
   window.addEventListener("load", function () {
+    sendHeight(true);
     bumpHeight();
-    setTimeout(sendHeight, 900);
   });
 
   window.addEventListener("resize", function () {
     bumpHeight();
   });
 
-  // ResizeObserver = best way to auto-adjust for any content changes
+  // ResizeObserver: still useful, but guarded by anti-loop logic above
   try {
     const ro = new ResizeObserver(function () {
-      sendHeight();
+      sendHeight(false);
     });
     ro.observe(document.documentElement);
   } catch (e) {}
@@ -99,10 +124,7 @@
     if (!p) return;
     if (on) {
       const cur = selected.get(pid);
-      selected.set(pid, {
-        ...p,
-        qty: cur && cur.qty ? cur.qty : p.defaultQty || 1,
-      });
+      selected.set(pid, { ...p, qty: (cur && cur.qty) ? cur.qty : (p.defaultQty || 1) });
     } else {
       selected.delete(pid);
     }
@@ -124,8 +146,7 @@
   // =========================================================
   function renderOptions(step) {
     optionsEl.innerHTML = "";
-
-    const opts = step && step.options ? step.options : [];
+    const opts = (step && step.options) ? step.options : [];
     optionsEl.style.display = opts.length ? "grid" : "none";
 
     opts.forEach((opt) => {
@@ -133,12 +154,8 @@
       const active = answers[step.id] === opt.value;
       div.className = "opt" + (active ? " opt--active" : "");
       div.innerHTML =
-        '<div class="opt__title">' +
-        (opt.title || "") +
-        "</div>" +
-        '<div class="opt__sub">' +
-        (opt.sub || "") +
-        "</div>";
+        '<div class="opt__title">' + (opt.title || "") + "</div>" +
+        '<div class="opt__sub">' + (opt.sub || "") + "</div>";
 
       div.addEventListener("click", function () {
         setAnswer(step.id, opt.value);
@@ -154,99 +171,68 @@
   // =========================================================
   function renderContent(step) {
     contentEl.innerHTML = "";
-
     if (!step) return;
     if (step.id !== "products" && step.id !== "done") return;
 
     const plan = getPlan(answers);
 
-    // Overzicht block (badges)
+    // Overzicht
     const block1 = document.createElement("div");
     block1.className = "block";
     block1.innerHTML =
       '<div class="block__title">Overzicht</div>' +
       '<p class="p">Jouw keuzes bepalen de aanpak en de productlijst.</p>' +
       '<div class="badges">' +
-      (plan.badges || [])
-        .map((b) => '<span class="badge">' + b + "</span>")
-        .join("") +
+      (plan.badges || []).map((b) => '<span class="badge">' + b + "</span>").join("") +
       "</div>";
     contentEl.appendChild(block1);
 
-    // PRODUCTS step: split layout
+    // PRODUCTS: split
     if (step.id === "products") {
       const split = document.createElement("div");
       split.className = "products-split";
 
-      // LINKS: stappenplan
+      // links
       const block2 = document.createElement("div");
       block2.className = "block";
       block2.innerHTML = '<div class="block__title">Stappenplan</div>';
-
       (plan.stepsText || []).forEach((s) => {
         const p = document.createElement("p");
         p.className = "p";
         p.style.marginTop = "8px";
         p.innerHTML =
-          '<strong style="color:var(--text)">' +
-          (s.title || "") +
-          "</strong><br>" +
+          '<strong style="color:var(--text)">' + (s.title || "") + "</strong><br>" +
           (s.text || "");
         block2.appendChild(p);
       });
 
-      // RECHTS: aanbevolen producten
+      // rechts
       const block3 = document.createElement("div");
       block3.className = "block";
-      block3.innerHTML =
-        '<div class="block__title">Aanbevolen producten</div>';
+      block3.innerHTML = '<div class="block__title">Aanbevolen producten</div>';
 
       (plan.needed || []).forEach((p) => {
-        // auto-select defaults (maar respecteer user keuzes)
-        if (!selected.has(p.id)) {
-          selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
-        }
+        if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
 
         const row = document.createElement("div");
         row.className = "prod";
-
         const checked = selected.has(p.id);
-        const currentQty =
-          selected.get(p.id) && selected.get(p.id).qty
-            ? selected.get(p.id).qty
-            : 1;
+        const currentQty = (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
 
-        row.innerHTML =
-          '<div class="prod__left">' +
-          '<input class="chk" type="checkbox" ' +
-          (checked ? "checked" : "") +
-          ' aria-label="Selecteer ' +
-          (p.name || "") +
-          '">' +
-          "<div>" +
-          '<div class="prod__name">' +
-          (p.name || "") +
-          "</div>" +
-          '<div class="prod__why">' +
-          (p.why || "") +
-          "</div>" +
-          '<div class="badges"><span class="badge">' +
-          (p.tag || "Product") +
-          "</span></div>" +
-          "</div>" +
-          "</div>" +
-          '<input class="qty" type="number" min="1" max="99" value="' +
-          currentQty +
-          '" aria-label="Aantal">';
+        row.innerHTML = `
+          <div class="prod__left">
+            <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name}">
+            <div>
+              <div class="prod__name">${p.name || ""}</div>
+              <div class="prod__why">${p.why || ""}</div>
+              <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
+            </div>
+          </div>
+          <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
+        `;
 
-        const chk = row.querySelector(".chk");
-        const qty = row.querySelector(".qty");
-
-        chk.addEventListener("change", (e) =>
-          toggleProduct(p.id, e.target.checked)
-        );
-        qty.addEventListener("change", (e) => setQty(p.id, e.target.value));
-
+        row.querySelector(".chk").addEventListener("change", (e) => toggleProduct(p.id, e.target.checked));
+        row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
         block3.appendChild(row);
       });
 
@@ -256,10 +242,10 @@
 
       renderCart();
       bumpHeight();
-      return; // voorkom dubbel renderen
+      return;
     }
 
-    // DONE step: korte uitleg
+    // DONE
     if (step.id === "done") {
       const blockDone = document.createElement("div");
       blockDone.className = "block";
@@ -275,11 +261,10 @@
   }
 
   // =========================================================
-  // CART RENDER
+  // CART
   // =========================================================
   function renderCart() {
     cartEl.innerHTML = "";
-
     const items = Array.from(selected.values());
 
     if (!items.length) {
@@ -290,31 +275,19 @@
     items.forEach((it) => {
       const row = document.createElement("div");
       row.className = "cartitem";
-      row.innerHTML =
-        "<div>" +
-        '<div class="cartitem__name">' +
-        (it.name || "") +
-        "</div>" +
-        '<div class="cartitem__meta">' +
-        (it.tag || "Product") +
-        " • Aantal: " +
-        (it.qty || 1) +
-        "</div>" +
-        "</div>" +
-        '<div class="cartitem__right">' +
-        '<input class="qty" style="width:64px" type="number" min="1" max="99" value="' +
-        (it.qty || 1) +
-        '" aria-label="Aantal ' +
-        (it.name || "") +
-        '">' +
-        '<button class="iconbtn" type="button" title="Verwijderen">×</button>' +
-        "</div>";
+      row.innerHTML = `
+        <div>
+          <div class="cartitem__name">${it.name || ""}</div>
+          <div class="cartitem__meta">${it.tag || "Product"} • Aantal: ${it.qty || 1}</div>
+        </div>
+        <div class="cartitem__right">
+          <input class="qty" style="width:64px" type="number" min="1" max="99" value="${it.qty || 1}" aria-label="Aantal ${it.name || ""}">
+          <button class="iconbtn" type="button" title="Verwijderen">×</button>
+        </div>
+      `;
 
-      const qty = row.querySelector("input");
-      const del = row.querySelector("button");
-
-      qty.addEventListener("change", (e) => setQty(it.id, e.target.value));
-      del.addEventListener("click", () => {
+      row.querySelector("input").addEventListener("change", (e) => setQty(it.id, e.target.value));
+      row.querySelector("button").addEventListener("click", () => {
         selected.delete(it.id);
         renderCart();
         bumpHeight();
@@ -355,9 +328,6 @@
     bumpHeight();
   }
 
-  // =========================================================
-  // NAV
-  // =========================================================
   function next() {
     if (!isStepComplete(stepIndex)) return;
     if (stepIndex < steps.length - 1) {
@@ -413,7 +383,6 @@
     }
   });
 
-  // initial
   render();
   bumpHeight();
 })();
