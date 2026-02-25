@@ -19,24 +19,28 @@
 
   const steps = window.STEPS || [];
   const products = window.PRODUCTS || {};
-  const getPlan = window.getPlan || function () {
-    return { needed: [], stepsText: [], badges: [] };
-  };
+  const getPlan =
+    window.getPlan ||
+    function () {
+      return { needed: [], stepsText: [], badges: [] };
+    };
 
   const answers = {};
   const selected = new Map(); // productId -> { ...product, qty }
 
   let stepIndex = 0;
 
-  // ---------- IFRAME HEIGHT SYNC ----------
+  // =========================================================
+  // AUTO IFRAME HEIGHT (dynamic per step)
+  // =========================================================
   const PARENT_ORIGIN = "https://www.lakopmaat.nl";
 
-  function postHeight() {
+  function sendHeight() {
     try {
-      const h =
-        document.documentElement.scrollHeight ||
-        document.body.scrollHeight ||
-        900;
+      const h = Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0
+      );
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(
           { type: "LOM_IFRAME_HEIGHT", height: h },
@@ -46,16 +50,33 @@
     } catch (e) {}
   }
 
-  function scheduleHeight() {
-    setTimeout(postHeight, 30);
-    setTimeout(postHeight, 200);
+  function bumpHeight() {
+    // multiple ticks so layout/fonts can settle
+    setTimeout(sendHeight, 20);
+    setTimeout(sendHeight, 120);
+    setTimeout(sendHeight, 450);
   }
 
-  window.addEventListener("resize", function () {
-    scheduleHeight();
+  window.addEventListener("load", function () {
+    bumpHeight();
+    setTimeout(sendHeight, 900);
   });
 
-  // ---------- HELPERS ----------
+  window.addEventListener("resize", function () {
+    bumpHeight();
+  });
+
+  // ResizeObserver = best way to auto-adjust for any content changes
+  try {
+    const ro = new ResizeObserver(function () {
+      sendHeight();
+    });
+    ro.observe(document.documentElement);
+  } catch (e) {}
+
+  // =========================================================
+  // HELPERS
+  // =========================================================
   function setAnswer(stepId, value) {
     answers[stepId] = value;
   }
@@ -80,13 +101,13 @@
       const cur = selected.get(pid);
       selected.set(pid, {
         ...p,
-        qty: (cur && cur.qty) ? cur.qty : (p.defaultQty || 1),
+        qty: cur && cur.qty ? cur.qty : p.defaultQty || 1,
       });
     } else {
       selected.delete(pid);
     }
     renderCart();
-    scheduleHeight();
+    bumpHeight();
   }
 
   function setQty(pid, qty) {
@@ -95,14 +116,16 @@
     const n = Math.max(1, Math.min(99, parseInt(qty, 10) || 1));
     selected.set(pid, { ...it, qty: n });
     renderCart();
-    scheduleHeight();
+    bumpHeight();
   }
 
-  // ---------- RENDER OPTIONS ----------
+  // =========================================================
+  // RENDER OPTIONS
+  // =========================================================
   function renderOptions(step) {
     optionsEl.innerHTML = "";
 
-    const opts = (step && step.options) ? step.options : [];
+    const opts = step && step.options ? step.options : [];
     optionsEl.style.display = opts.length ? "grid" : "none";
 
     opts.forEach((opt) => {
@@ -110,8 +133,12 @@
       const active = answers[step.id] === opt.value;
       div.className = "opt" + (active ? " opt--active" : "");
       div.innerHTML =
-        '<div class="opt__title">' + (opt.title || "") + "</div>" +
-        '<div class="opt__sub">' + (opt.sub || "") + "</div>";
+        '<div class="opt__title">' +
+        (opt.title || "") +
+        "</div>" +
+        '<div class="opt__sub">' +
+        (opt.sub || "") +
+        "</div>";
 
       div.addEventListener("click", function () {
         setAnswer(step.id, opt.value);
@@ -122,7 +149,9 @@
     });
   }
 
-  // ---------- RENDER CONTENT ----------
+  // =========================================================
+  // RENDER CONTENT
+  // =========================================================
   function renderContent(step) {
     contentEl.innerHTML = "";
 
@@ -138,7 +167,9 @@
       '<div class="block__title">Overzicht</div>' +
       '<p class="p">Jouw keuzes bepalen de aanpak en de productlijst.</p>' +
       '<div class="badges">' +
-      (plan.badges || []).map((b) => '<span class="badge">' + b + "</span>").join("") +
+      (plan.badges || [])
+        .map((b) => '<span class="badge">' + b + "</span>")
+        .join("") +
       "</div>";
     contentEl.appendChild(block1);
 
@@ -157,7 +188,9 @@
         p.className = "p";
         p.style.marginTop = "8px";
         p.innerHTML =
-          '<strong style="color:var(--text)">' + (s.title || "") + "</strong><br>" +
+          '<strong style="color:var(--text)">' +
+          (s.title || "") +
+          "</strong><br>" +
           (s.text || "");
         block2.appendChild(p);
       });
@@ -165,7 +198,8 @@
       // RECHTS: aanbevolen producten
       const block3 = document.createElement("div");
       block3.className = "block";
-      block3.innerHTML = '<div class="block__title">Aanbevolen producten</div>';
+      block3.innerHTML =
+        '<div class="block__title">Aanbevolen producten</div>';
 
       (plan.needed || []).forEach((p) => {
         // auto-select defaults (maar respecteer user keuzes)
@@ -177,23 +211,40 @@
         row.className = "prod";
 
         const checked = selected.has(p.id);
-        const currentQty = (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
+        const currentQty =
+          selected.get(p.id) && selected.get(p.id).qty
+            ? selected.get(p.id).qty
+            : 1;
 
         row.innerHTML =
           '<div class="prod__left">' +
-            '<input class="chk" type="checkbox" ' + (checked ? "checked" : "") + ' aria-label="Selecteer ' + (p.name || "") + '">' +
-            "<div>" +
-              '<div class="prod__name">' + (p.name || "") + "</div>" +
-              '<div class="prod__why">' + (p.why || "") + "</div>" +
-              '<div class="badges"><span class="badge">' + (p.tag || "Product") + "</span></div>" +
-            "</div>" +
+          '<input class="chk" type="checkbox" ' +
+          (checked ? "checked" : "") +
+          ' aria-label="Selecteer ' +
+          (p.name || "") +
+          '">' +
+          "<div>" +
+          '<div class="prod__name">' +
+          (p.name || "") +
           "</div>" +
-          '<input class="qty" type="number" min="1" max="99" value="' + currentQty + '" aria-label="Aantal">';
+          '<div class="prod__why">' +
+          (p.why || "") +
+          "</div>" +
+          '<div class="badges"><span class="badge">' +
+          (p.tag || "Product") +
+          "</span></div>" +
+          "</div>" +
+          "</div>" +
+          '<input class="qty" type="number" min="1" max="99" value="' +
+          currentQty +
+          '" aria-label="Aantal">';
 
         const chk = row.querySelector(".chk");
         const qty = row.querySelector(".qty");
 
-        chk.addEventListener("change", (e) => toggleProduct(p.id, e.target.checked));
+        chk.addEventListener("change", (e) =>
+          toggleProduct(p.id, e.target.checked)
+        );
         qty.addEventListener("change", (e) => setQty(p.id, e.target.value));
 
         block3.appendChild(row);
@@ -204,11 +255,11 @@
       contentEl.appendChild(split);
 
       renderCart();
-      scheduleHeight();
-      return; // belangrijk: voorkom dat er nog iets onderaan dubbel rendert
+      bumpHeight();
+      return; // voorkom dubbel renderen
     }
 
-    // DONE step: toon een korte samenvatting + reminder
+    // DONE step: korte uitleg
     if (step.id === "done") {
       const blockDone = document.createElement("div");
       blockDone.className = "block";
@@ -218,12 +269,14 @@
       contentEl.appendChild(blockDone);
 
       renderCart();
-      scheduleHeight();
+      bumpHeight();
       return;
     }
   }
 
-  // ---------- CART RENDER ----------
+  // =========================================================
+  // CART RENDER
+  // =========================================================
   function renderCart() {
     cartEl.innerHTML = "";
 
@@ -239,12 +292,22 @@
       row.className = "cartitem";
       row.innerHTML =
         "<div>" +
-          '<div class="cartitem__name">' + (it.name || "") + "</div>" +
-          '<div class="cartitem__meta">' + (it.tag || "Product") + " • Aantal: " + (it.qty || 1) + "</div>" +
+        '<div class="cartitem__name">' +
+        (it.name || "") +
+        "</div>" +
+        '<div class="cartitem__meta">' +
+        (it.tag || "Product") +
+        " • Aantal: " +
+        (it.qty || 1) +
+        "</div>" +
         "</div>" +
         '<div class="cartitem__right">' +
-          '<input class="qty" style="width:64px" type="number" min="1" max="99" value="' + (it.qty || 1) + '" aria-label="Aantal ' + (it.name || "") + '">' +
-          '<button class="iconbtn" type="button" title="Verwijderen">×</button>' +
+        '<input class="qty" style="width:64px" type="number" min="1" max="99" value="' +
+        (it.qty || 1) +
+        '" aria-label="Aantal ' +
+        (it.name || "") +
+        '">' +
+        '<button class="iconbtn" type="button" title="Verwijderen">×</button>' +
         "</div>";
 
       const qty = row.querySelector("input");
@@ -254,14 +317,16 @@
       del.addEventListener("click", () => {
         selected.delete(it.id);
         renderCart();
-        scheduleHeight();
+        bumpHeight();
       });
 
       cartEl.appendChild(row);
     });
   }
 
-  // ---------- MAIN RENDER ----------
+  // =========================================================
+  // MAIN RENDER
+  // =========================================================
   function render() {
     const step = steps[stepIndex];
     if (!step) return;
@@ -287,16 +352,19 @@
     }
 
     renderProgress();
-    scheduleHeight();
+    bumpHeight();
   }
 
-  // ---------- NAV ----------
+  // =========================================================
+  // NAV
+  // =========================================================
   function next() {
     if (!isStepComplete(stepIndex)) return;
     if (stepIndex < steps.length - 1) {
       stepIndex++;
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+      bumpHeight();
     }
   }
 
@@ -305,6 +373,7 @@
       stepIndex--;
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+      bumpHeight();
     }
   }
 
@@ -315,7 +384,9 @@
     render();
   }
 
-  // ---------- EVENTS ----------
+  // =========================================================
+  // EVENTS
+  // =========================================================
   backBtn.addEventListener("click", back);
   nextBtn.addEventListener("click", next);
   resetBtn.addEventListener("click", resetAll);
@@ -327,7 +398,7 @@
       await window.CartAPI.addAll(items);
       alert("Toegevoegd aan winkelwagen.");
     } catch (err) {
-      alert(String((err && err.message) ? err.message : err));
+      alert(String(err && err.message ? err.message : err));
     }
   });
 
@@ -338,11 +409,11 @@
       await window.CartAPI.addAll(items);
       window.CartAPI.goCheckout();
     } catch (err) {
-      alert(String((err && err.message) ? err.message : err));
+      alert(String(err && err.message ? err.message : err));
     }
   });
 
   // initial
   render();
-  scheduleHeight();
+  bumpHeight();
 })();
