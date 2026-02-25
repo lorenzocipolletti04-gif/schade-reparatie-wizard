@@ -14,6 +14,7 @@
   const checkoutBtn = $("#checkoutBtn");
   const yearEl = $("#year");
   const progressBar = $("#progressBar");
+  const sidebarRoot = $("#sidebarRoot");
 
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -36,12 +37,10 @@
   let lastSent = 0;
 
   function measureHeight() {
-    // Use layout height, not scrollHeight (prevents runaway loops)
     const el = document.getElementById("appRoot") || document.body;
     const rect = el.getBoundingClientRect();
     let h = Math.ceil(rect.height);
 
-    // fallback
     if (!h || h < 300) {
       h = Math.ceil(
         Math.max(
@@ -55,8 +54,8 @@
 
   function clampHeight(h) {
     const isMobile = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
-    const MIN = isMobile ? 750 : 650;
-    const MAX = isMobile ? 2600 : 2200;
+    const MIN = isMobile ? 760 : 650;
+    const MAX = isMobile ? 3200 : 2400;
     if (h < MIN) h = MIN;
     if (h > MAX) h = MAX;
     return h;
@@ -65,13 +64,9 @@
   function sendHeight(force) {
     try {
       if (!window.parent || window.parent === window) return;
-
-      let h = clampHeight(measureHeight());
-
-      // only send when changed enough (anti-loop)
+      const h = clampHeight(measureHeight());
       if (!force && Math.abs(h - lastSent) < 8) return;
       lastSent = h;
-
       window.parent.postMessage({ type: "LOM_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
     } catch (e) {}
   }
@@ -91,13 +86,71 @@
     bumpHeight();
   });
 
-  // ResizeObserver: still useful, but guarded by anti-loop logic above
   try {
     const ro = new ResizeObserver(function () {
       sendHeight(false);
     });
     ro.observe(document.documentElement);
   } catch (e) {}
+
+  // =========================================================
+  // MOBILE DRAWER UI (cart)
+  // =========================================================
+  let backdropEl = null;
+  let cartToggleBtn = null;
+
+  function isMobileDrawer() {
+    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  function ensureDrawerUI() {
+    if (!sidebarRoot) return;
+
+    if (!backdropEl) {
+      backdropEl = document.createElement("div");
+      backdropEl.className = "drawer-backdrop";
+      backdropEl.addEventListener("click", () => setDrawerOpen(false));
+      document.body.appendChild(backdropEl);
+    }
+
+    if (!cartToggleBtn) {
+      cartToggleBtn = document.createElement("button");
+      cartToggleBtn.type = "button";
+      cartToggleBtn.className = "cart-toggle";
+      cartToggleBtn.innerHTML = `
+        <span>Jouw lijst</span>
+        <span class="cart-toggle__count" id="cartToggleCount">0</span>
+      `;
+      cartToggleBtn.addEventListener("click", () => setDrawerOpen(true));
+      document.body.appendChild(cartToggleBtn);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    });
+
+    window.addEventListener("resize", () => {
+      if (!isMobileDrawer()) setDrawerOpen(false);
+    });
+  }
+
+  function setDrawerOpen(open) {
+    if (!sidebarRoot) return;
+    if (!isMobileDrawer()) {
+      document.body.classList.remove("drawer-open");
+      return;
+    }
+    document.body.classList.toggle("drawer-open", !!open);
+    bumpHeight();
+  }
+
+  function updateCartToggleCount() {
+    if (!cartToggleBtn) return;
+    const countEl = cartToggleBtn.querySelector("#cartToggleCount");
+    if (countEl) countEl.textContent = String(selected.size);
+  }
+
+  ensureDrawerUI();
 
   // =========================================================
   // HELPERS
@@ -122,13 +175,19 @@
   function toggleProduct(pid, on) {
     const p = products[pid];
     if (!p) return;
+
     if (on) {
       const cur = selected.get(pid);
       selected.set(pid, { ...p, qty: (cur && cur.qty) ? cur.qty : (p.defaultQty || 1) });
     } else {
       selected.delete(pid);
     }
+
     renderCart();
+
+    // ✅ best UX: on mobile, open drawer when user adds something
+    if (on && isMobileDrawer()) setDrawerOpen(true);
+
     bumpHeight();
   }
 
@@ -183,7 +242,7 @@
       '<div class="block__title">Overzicht</div>' +
       '<p class="p">Jouw keuzes bepalen de aanpak en de productlijst.</p>' +
       '<div class="badges">' +
-      (plan.badges || []).map((b) => '<span class="badge">' + b + "</span>").join("") +
+      (plan.badges || []).filter(Boolean).map((b) => '<span class="badge">' + b + "</span>").join("") +
       "</div>";
     contentEl.appendChild(block1);
 
@@ -192,58 +251,60 @@
       const split = document.createElement("div");
       split.className = "products-split";
 
-      // links
+      // Stappenplan
       const block2 = document.createElement("div");
       block2.className = "block";
       block2.innerHTML = '<div class="block__title">Stappenplan</div>';
-      (plan.stepsText || []).forEach((s) => {
-        const p = document.createElement("p");
-        p.className = "p";
-        p.style.marginTop = "8px";
-        p.innerHTML =
-          '<strong style="color:var(--text)">' + (s.title || "") + "</strong><br>" +
-          (s.text || "");
-        block2.appendChild(p);
-      });
 
-      // rechts
+      const ul = document.createElement("ul");
+      (plan.stepsText || []).forEach((s) => {
+        const li = document.createElement("li");
+        const title = (s && s.title) ? s.title : "";
+        const text = (s && s.text) ? s.text : "";
+        li.innerHTML = "<strong>" + title + "</strong><br>" + text;
+        ul.appendChild(li);
+      });
+      block2.appendChild(ul);
+
+      // Producten
       const block3 = document.createElement("div");
       block3.className = "block";
       block3.innerHTML = '<div class="block__title">Aanbevolen producten</div>';
 
       (plan.needed || []).forEach((p) => {
-  // default select (zoals je al had)
-  if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
+        if (!p || !p.id) return;
 
-  const checked = selected.has(p.id);
-  const currentQty =
-    (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
+        // default select (as before)
+        if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
 
-  const row = document.createElement("div");
-  row.className = "prod" + (checked ? " prod--selected" : "");
+        const checked = selected.has(p.id);
+        const currentQty = (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
 
-  row.innerHTML = `
-    <div class="prod__left">
-      <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name}">
-      <div>
-        <div class="prod__name">${p.name || ""}</div>
-        <div class="prod__why">${p.why || ""}</div>
-        <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
-      </div>
-    </div>
-    <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
-  `;
+        const row = document.createElement("div");
+        row.className = "prod" + (checked ? " prod--selected" : "");
 
-  const chk = row.querySelector(".chk");
-  chk.addEventListener("change", (e) => {
-    toggleProduct(p.id, e.target.checked);
-    row.classList.toggle("prod--selected", !!e.target.checked);
-  });
+        row.innerHTML = `
+          <div class="prod__left">
+            <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name || ""}">
+            <div>
+              <div class="prod__name">${p.name || ""}</div>
+              <div class="prod__why">${p.why || ""}</div>
+              <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
+            </div>
+          </div>
+          <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
+        `;
 
-  row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
+        const chk = row.querySelector(".chk");
+        chk.addEventListener("change", (e) => {
+          toggleProduct(p.id, e.target.checked);
+          row.classList.toggle("prod--selected", !!e.target.checked);
+        });
 
-  block3.appendChild(row);
-});
+        row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
+
+        block3.appendChild(row);
+      });
 
       split.appendChild(block2);
       split.appendChild(block3);
@@ -260,7 +321,7 @@
       blockDone.className = "block";
       blockDone.innerHTML =
         '<div class="block__title">Check je lijst</div>' +
-        '<p class="p">Controleer rechts je producten en aantallen. Klik daarna op "Alles toevoegen" of "Afrekenen".</p>';
+        '<p class="p">Controleer je producten en aantallen. Op mobiel vind je "Jouw lijst" onderin via de knop.</p>';
       contentEl.appendChild(blockDone);
 
       renderCart();
@@ -270,29 +331,47 @@
   }
 
   // =========================================================
-  // CART
+  // CART (mini-table + subtotals)
   // =========================================================
+  function formatMoneyEUR(amount) {
+    try {
+      return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(amount);
+    } catch (e) {
+      return "€ " + (Math.round(amount * 100) / 100).toFixed(2);
+    }
+  }
+
   function renderCart() {
     cartEl.innerHTML = "";
     const items = Array.from(selected.values());
+
+    updateCartToggleCount();
 
     if (!items.length) {
       cartEl.innerHTML = '<div class="muted">Nog geen producten gekozen.</div>';
       return;
     }
 
+    const table = document.createElement("div");
+    table.className = "carttable";
+
+    const hasPrices = items.some((it) => typeof it.price === "number" && isFinite(it.price));
+    let subtotal = 0;
+
     items.forEach((it) => {
       const row = document.createElement("div");
-      row.className = "cartitem";
+      row.className = "cartrow";
+
+      const qty = it.qty || 1;
+      if (hasPrices && typeof it.price === "number") subtotal += it.price * qty;
+
       row.innerHTML = `
         <div>
-          <div class="cartitem__name">${it.name || ""}</div>
-          <div class="cartitem__meta">${it.tag || "Product"} • Aantal: ${it.qty || 1}</div>
+          <div class="cartrow__name">${it.name || ""}</div>
+          <div class="cartrow__meta">${it.tag || "Product"}</div>
         </div>
-        <div class="cartitem__right">
-          <input class="qty" style="width:64px" type="number" min="1" max="99" value="${it.qty || 1}" aria-label="Aantal ${it.name || ""}">
-          <button class="iconbtn" type="button" title="Verwijderen">×</button>
-        </div>
+        <input class="qty" type="number" min="1" max="99" value="${qty}" aria-label="Aantal ${it.name || ""}">
+        <button class="iconbtn" type="button" title="Verwijderen">×</button>
       `;
 
       row.querySelector("input").addEventListener("change", (e) => setQty(it.id, e.target.value));
@@ -302,8 +381,35 @@
         bumpHeight();
       });
 
-      cartEl.appendChild(row);
+      table.appendChild(row);
     });
+
+    cartEl.appendChild(table);
+
+    // Totals box
+    const totals = document.createElement("div");
+    totals.className = "carttotals";
+
+    if (!hasPrices) {
+      totals.innerHTML = `
+        <div class="line line--muted"><span>Subtotaal</span><span>—</span></div>
+        <div class="line line--muted"><span>Verzendkosten</span><span>—</span></div>
+        <div class="hr"></div>
+        <div class="line line--total"><span>Totaal</span><span>—</span></div>
+        <div class="muted" style="margin-top:6px">Tip: voeg later per product een <b>price</b> toe in <code>data.js</code> voor echte subtotalen.</div>
+      `;
+    } else {
+      const shipping = 0;
+      const total = subtotal + shipping;
+      totals.innerHTML = `
+        <div class="line"><span>Subtotaal</span><span>${formatMoneyEUR(subtotal)}</span></div>
+        <div class="line line--muted"><span>Verzendkosten</span><span>${shipping ? formatMoneyEUR(shipping) : "—"}</span></div>
+        <div class="hr"></div>
+        <div class="line line--total"><span>Totaal</span><span>${formatMoneyEUR(total)}</span></div>
+      `;
+    }
+
+    cartEl.appendChild(totals);
   }
 
   // =========================================================
@@ -360,7 +466,10 @@
     Object.keys(answers).forEach((k) => delete answers[k]);
     selected.clear();
     stepIndex = 0;
+    setDrawerOpen(false);
     render();
+    renderCart();
+    bumpHeight();
   }
 
   // =========================================================
@@ -376,6 +485,7 @@
     try {
       await window.CartAPI.addAll(items);
       alert("Toegevoegd aan winkelwagen.");
+      if (isMobileDrawer()) setDrawerOpen(false);
     } catch (err) {
       alert(String(err && err.message ? err.message : err));
     }
@@ -393,5 +503,6 @@
   });
 
   render();
+  renderCart();
   bumpHeight();
 })();
