@@ -260,4 +260,10 @@ body{
   }
 }
 
-body{ min-height: 100dvh; }
+
+
+body{
+  background: #ffffff !important;
+  color: #111827; /* donker tekst */
+}
+
