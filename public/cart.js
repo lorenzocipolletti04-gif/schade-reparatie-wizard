@@ -1,34 +1,31 @@
-
-// Cart adapter.
-// 1) Plak hier straks jouw addViaXajax + openMiniCart functie(s) in.
-// 2) Als die er is, gebruiken we die. Anders tonen we een duidelijke melding.
-
 (function(){
-  const SHOP_URL = "https://www.lakopmaat.nl"; // pas aan als je wil
-
-  // Placeholder: je plakt jouw echte implementatie hieronder (of zet ze op window).
-  // window.addViaXajax = async function(shopUrl, productId, qty){ ... }
-  // window.openMiniCart = function(){ ... }
-
-  async function addItem(productId, qty){
-    if (typeof window.addViaXajax === "function") {
-      await window.addViaXajax(SHOP_URL, productId, qty);
-      return;
-    }
-    throw new Error("addViaXajax ontbreekt. Plak je CCV add-to-cart functie in public/cart.js.");
-  }
+  const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 
   async function addAll(items){
-    for (const it of items) {
-      if(!it.ccvProductId) continue;
-      await addItem(it.ccvProductId, it.qty || 1);
-    }
-    if (typeof window.openMiniCart === "function") window.openMiniCart();
+    // Stuur naar de parent (lakopmaat.nl) om te voegen aan winkelwagen
+    window.parent.postMessage(
+      { type: "LOM_BULK_ADD", items: items.map(i => ({ id: i.ccvProductId, qty: i.qty || 1 })) },
+      SHOP_ORIGIN
+    );
+
+    // wacht op response (ok/fail)
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("Geen antwoord van winkelwagen script (timeout).")), 15000);
+
+      function onMsg(e){
+        if(e.origin !== SHOP_ORIGIN) return;
+        if(!e.data || e.data.type !== "LOM_BULK_ADD_RESULT") return;
+        window.removeEventListener("message", onMsg);
+        clearTimeout(t);
+        if(e.data.ok) resolve();
+        else reject(new Error(e.data.error || "Toevoegen mislukt"));
+      }
+      window.addEventListener("message", onMsg);
+    });
   }
 
   function goCheckout(){
-    // CCV basket pagina (meestal deze)
-    window.top.location.href = `${SHOP_URL}/website/index.php?Show=WebShopBasket`;
+    window.top.location.href = SHOP_ORIGIN + "/website/index.php?Show=WebShopBasket";
   }
 
   window.CartAPI = { addAll, goCheckout };
