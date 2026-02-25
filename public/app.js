@@ -215,7 +215,7 @@
         if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
 
         const row = document.createElement("div");
-        row.className = "prod";
+        row.className = "prod" + (checked ? " prod--selected" : "");
         const checked = selected.has(p.id);
         const currentQty = (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
 
@@ -231,7 +231,10 @@
           <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
         `;
 
-        row.querySelector(".chk").addEventListener("change", (e) => toggleProduct(p.id, e.target.checked));
+        row.querySelector(".chk").addEventListener("change", (e) => {
+  toggleProduct(p.id, e.target.checked);
+  row.classList.toggle("prod--selected", !!e.target.checked);
+});
         row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
         block3.appendChild(row);
       });
