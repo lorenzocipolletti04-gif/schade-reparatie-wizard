@@ -212,32 +212,38 @@
       block3.innerHTML = '<div class="block__title">Aanbevolen producten</div>';
 
       (plan.needed || []).forEach((p) => {
-        if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
+  // default select (zoals je al had)
+  if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
 
-        const row = document.createElement("div");
-        row.className = "prod" + (checked ? " prod--selected" : "");
-        const checked = selected.has(p.id);
-        const currentQty = (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
+  const checked = selected.has(p.id);
+  const currentQty =
+    (selected.get(p.id) && selected.get(p.id).qty) ? selected.get(p.id).qty : 1;
 
-        row.innerHTML = `
-          <div class="prod__left">
-            <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name}">
-            <div>
-              <div class="prod__name">${p.name || ""}</div>
-              <div class="prod__why">${p.why || ""}</div>
-              <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
-            </div>
-          </div>
-          <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
-        `;
+  const row = document.createElement("div");
+  row.className = "prod" + (checked ? " prod--selected" : "");
 
-        row.querySelector(".chk").addEventListener("change", (e) => {
-  toggleProduct(p.id, e.target.checked);
-  row.classList.toggle("prod--selected", !!e.target.checked);
+  row.innerHTML = `
+    <div class="prod__left">
+      <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name}">
+      <div>
+        <div class="prod__name">${p.name || ""}</div>
+        <div class="prod__why">${p.why || ""}</div>
+        <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
+      </div>
+    </div>
+    <input class="qty" type="number" min="1" max="99" value="${currentQty}" aria-label="Aantal">
+  `;
+
+  const chk = row.querySelector(".chk");
+  chk.addEventListener("change", (e) => {
+    toggleProduct(p.id, e.target.checked);
+    row.classList.toggle("prod--selected", !!e.target.checked);
+  });
+
+  row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
+
+  block3.appendChild(row);
 });
-        row.querySelector(".qty").addEventListener("change", (e) => setQty(p.id, e.target.value));
-        block3.appendChild(row);
-      });
 
       split.appendChild(block2);
       split.appendChild(block3);
