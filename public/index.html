@@ -1,1 +1,84 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hoe repareer ik mijn schade? | Lakopmaat</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">LOM</div>
+        <div>
+          <div class="title">Hoe repareer ik mijn schade?</div>
+          <div class="subtitle">Volg de stappen, vink producten aan, en reken af.</div>
+        </div>
+      </div>
 
+      <div class="progress" id="progress">
+        <div class="progress__bar" id="progressBar"></div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="stephead">
+          <div class="kicker" id="kicker">Stap 1</div>
+          <h1 class="h1" id="stepTitle">—</h1>
+          <p class="lead" id="stepLead">—</p>
+        </div>
+
+        <div class="grid" id="options"></div>
+
+        <div class="content" id="content"></div>
+
+        <div class="actions">
+          <button class="btn btn--ghost" id="backBtn" type="button">← Terug</button>
+          <button class="btn" id="nextBtn" type="button">Volgende →</button>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="card">
+          <div class="card__head">
+            <div class="card__title">Jouw lijst</div>
+            <button class="link" id="resetBtn" type="button">Alles wissen</button>
+          </div>
+
+          <div class="cart" id="cart"></div>
+
+          <div class="checkout">
+            <button class="btn btn--wide" id="addAllBtn" type="button">
+              Alles toevoegen aan winkelwagen
+            </button>
+            <button class="btn btn--wide btn--accent" id="checkoutBtn" type="button">
+              Ik heb alles → afrekenen
+            </button>
+
+            <div class="note">
+              Tip: je kunt per product het aantal aanpassen.
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--soft">
+          <div class="card__title">Email (later)</div>
+          <div class="muted">
+            In fase 2 voegen we een veld toe om je stappenplan als PDF te mailen.
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      © <span id="year"></span> Lakopmaat — Schade reparatie wizard
+    </footer>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./cart.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
