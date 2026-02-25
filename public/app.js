@@ -82,72 +82,55 @@
   function renderContent(step){
     contentEl.innerHTML = "";
 
-    if(step.id !== "products" && step.id !== "done") return;
+    if(step.id === "products"){
+  const split = document.createElement("div");
+  split.className = "products-split";
 
-    const plan = window.getPlan(answers);
+  // stappenplan (links)
+  const block2 = document.createElement("div");
+  block2.className = "block";
+  block2.innerHTML = `<div class="block__title">Stappenplan</div>`;
+  plan.stepsText.forEach(s=>{
+    const p = document.createElement("p");
+    p.className = "p";
+    p.style.marginTop = "8px";
+    p.innerHTML = `<strong style="color:var(--text)">${s.title}</strong><br>${s.text}`;
+    block2.appendChild(p);
+  });
 
-    // badges
-    const block1 = document.createElement("div");
-    block1.className = "block";
-    block1.innerHTML = `
-      <div class="block__title">Overzicht</div>
-      <p class="p">Jouw keuzes bepalen de aanpak en de productlijst.</p>
-      <div class="badges">${plan.badges.map(b=>`<span class="badge">${b}</span>`).join("")}</div>
-    `;
-    contentEl.appendChild(block1);
+  // producten (rechts)
+  const block3 = document.createElement("div");
+  block3.className = "block";
+  block3.innerHTML = `<div class="block__title">Aanbevolen producten</div>`;
+  plan.needed.forEach(p=>{
+    if(!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
 
-    // split container (links stappenplan, rechts producten)
-const split = document.createElement("div");
-split.className = "products-split";
-
-// LINKS: stappenplan
-const block2 = document.createElement("div");
-block2.className = "block";
-block2.innerHTML = `<div class="block__title">Stappenplan</div>`;
-plan.stepsText.forEach(s => {
-  const p = document.createElement("p");
-  p.className = "p";
-  p.style.marginTop = "8px";
-  p.innerHTML = `<strong style="color:var(--text)">${s.title}</strong><br>${s.text}`;
-  block2.appendChild(p);
-});
-
-// RECHTS: products checklist
-const block3 = document.createElement("div");
-block3.className = "block";
-block3.innerHTML = `<div class="block__title">Aanbevolen producten</div>`;
-plan.needed.forEach(p => {
-  // auto-select defaults (maar respecteer user keuzes)
-  if (!selected.has(p.id)) selected.set(p.id, { ...p, qty: p.qty || p.defaultQty || 1 });
-
-  const row = document.createElement("div");
-  row.className = "prod";
-  const checked = selected.has(p.id);
-  row.innerHTML = `
-    <div class="prod__left">
-      <input class="chk" type="checkbox" ${checked ? "checked" : ""} aria-label="Selecteer ${p.name}">
-      <div>
-        <div class="prod__name">${p.name}</div>
-        <div class="prod__why">${p.why || ""}</div>
-        <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
+    const row = document.createElement("div");
+    row.className = "prod";
+    const checked = selected.has(p.id);
+    row.innerHTML = `
+      <div class="prod__left">
+        <input class="chk" type="checkbox" ${checked ? "checked":""} aria-label="Selecteer ${p.name}">
+        <div>
+          <div class="prod__name">${p.name}</div>
+          <div class="prod__why">${p.why || ""}</div>
+          <div class="badges"><span class="badge">${p.tag || "Product"}</span></div>
+        </div>
       </div>
-    </div>
-    <input class="qty" type="number" min="1" max="99" value="${selected.get(p.id)?.qty || 1}" aria-label="Aantal">
-  `;
-  const chk = row.querySelector(".chk");
-  const qty = row.querySelector(".qty");
-  chk.addEventListener("change", (e) => toggleProduct(p.id, e.target.checked));
-  qty.addEventListener("change", (e) => setQty(p.id, e.target.value));
-  block3.appendChild(row);
-});
+      <input class="qty" type="number" min="1" max="99" value="${selected.get(p.id)?.qty || 1}" aria-label="Aantal">
+    `;
+    row.querySelector(".chk").addEventListener("change", (e)=> toggleProduct(p.id, e.target.checked));
+    row.querySelector(".qty").addEventListener("change", (e)=> setQty(p.id, e.target.value));
+    block3.appendChild(row);
+  });
 
-// in split zetten + renderen
-split.appendChild(block2);
-split.appendChild(block3);
-contentEl.appendChild(split);
+  split.appendChild(block2);
+  split.appendChild(block3);
+  contentEl.appendChild(split);
 
-    renderCart();
-  }
+  renderCart();
+  return; // <- belangrijk: voorkomt dat de oude layout eronder alsnog rendert
+}
 
   function renderCart(){
     cartEl.innerHTML = "";
