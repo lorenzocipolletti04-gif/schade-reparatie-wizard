@@ -31,50 +31,40 @@
   let stepIndex = 0;
 
   // =========================================================
-  // AUTO IFRAME HEIGHT (stable + anti-loop)
+  // AUTO IFRAME HEIGHT (no scroll-growth)
+  // - Uses document height, debounced
+  // - Sends both SRW_IFRAME_HEIGHT (older) and LOM_IFRAME_HEIGHT (newer)
   // =========================================================
-  const PARENT_ORIGIN = "https://www.lakopmaat.nl";
+  const PARENT_ORIGIN = "*";
   let lastSent = 0;
 
-  function measureHeight() {
-    const el = document.getElementById("appRoot") || document.body;
-    const rect = el.getBoundingClientRect();
-    let h = Math.ceil(rect.height);
-
-    if (!h || h < 300) {
-      h = Math.ceil(
-        Math.max(
-          document.documentElement ? document.documentElement.clientHeight : 0,
-          document.body ? document.body.clientHeight : 0
-        )
-      );
-    }
-    return h;
-  }
-
-  function clampHeight(h) {
-    const isMobile = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
-    const MIN = isMobile ? 760 : 650;
-    const MAX = isMobile ? 3200 : 2400;
-    if (h < MIN) h = MIN;
-    if (h > MAX) h = MAX;
-    return h;
+  function getDocHeight() {
+    const body = document.body;
+    const html = document.documentElement;
+    return Math.max(
+      body ? body.scrollHeight : 0,
+      body ? body.offsetHeight : 0,
+      html ? html.clientHeight : 0,
+      html ? html.scrollHeight : 0,
+      html ? html.offsetHeight : 0
+    );
   }
 
   function sendHeight(force) {
     try {
       if (!window.parent || window.parent === window) return;
-      const h = clampHeight(measureHeight());
-      if (!force && Math.abs(h - lastSent) < 8) return;
+      const h = Math.max(320, Math.min(getDocHeight() + 8, 4000));
+      if (!force && Math.abs(h - lastSent) < 2) return;
       lastSent = h;
+
+      window.parent.postMessage({ type: "SRW_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
       window.parent.postMessage({ type: "LOM_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
     } catch (e) {}
   }
 
   function bumpHeight() {
-    setTimeout(() => sendHeight(false), 40);
-    setTimeout(() => sendHeight(false), 200);
-    setTimeout(() => sendHeight(false), 600);
+    setTimeout(() => sendHeight(false), 50);
+    setTimeout(() => sendHeight(false), 220);
   }
 
   window.addEventListener("load", function () {
@@ -87,13 +77,12 @@
   });
 
   try {
-    const ro = new ResizeObserver(function () {
-      sendHeight(false);
+    const mo = new MutationObserver(function () {
+      requestAnimationFrame(() => sendHeight(false));
     });
-    ro.observe(document.documentElement);
+    mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
   } catch (e) {}
-
-  // =========================================================
+// =========================================================
   // MOBILE DRAWER UI (cart)
   // =========================================================
   let backdropEl = null;
