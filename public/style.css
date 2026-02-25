@@ -213,3 +213,51 @@ body{
 @media (max-width: 980px){
   .products-split{grid-template-columns:1fr;}
 }
+
+
+/* ===== Mobile responsive tweaks ===== */
+@media (max-width: 768px){
+
+  .app{ padding: 10px; }
+
+  .layout{
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  /* sidebar onder de wizard (of boven, maar onder voelt logisch) */
+  .sidebar{
+    order: 2;
+  }
+  .panel{
+    order: 1;
+    padding: 14px;
+  }
+
+  .h1{ font-size: 20px; }
+  .lead{ font-size: 13px; }
+
+  .grid{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* buttons onderin: full width */
+  .actions{
+    flex-direction: column;
+  }
+  .actions .btn{
+    width: 100%;
+  }
+
+  /* cart lijst: niet te hoog op mobiel */
+  .cart{
+    max-height: 260px;
+  }
+
+  /* split op products stap -> 1 kolom */
+  .products-split{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+body{ min-height: 100dvh; }
