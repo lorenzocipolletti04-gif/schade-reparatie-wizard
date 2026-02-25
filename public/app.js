@@ -250,4 +250,25 @@
   });
 
   render();
+
+
+function postHeight(){
+  try{
+    var h = document.documentElement.scrollHeight || document.body.scrollHeight || 900;
+    window.parent && window.parent.postMessage(
+      { type: "LOM_IFRAME_HEIGHT", height: h },
+      "https://www.lakopmaat.nl"
+    );
+  }catch(e){}
+}
+
+// bij start + bij updates
+setTimeout(postHeight, 50);
+setTimeout(postHeight, 250);
+window.addEventListener("resize", function(){ setTimeout(postHeight, 50); });
+
+
+
+
+  
 })();
