@@ -2,24 +2,39 @@
   const SHOP_ORIGIN = "https://www.lakopmaat.nl";
 
   async function addAll(items){
-    // Stuur naar de parent (lakopmaat.nl) om te voegen aan winkelwagen
+    // items: [{ ccvProductId, qty }]
+    const payload = items
+      .filter(i => i && i.ccvProductId)
+      .map(i => ({ id: String(i.ccvProductId), qty: Math.max(1, parseInt(i.qty || 1, 10) || 1) }));
+
+    if (!payload.length) throw new Error("Geen geldige producten (ccvProductId leeg).");
+
+    // Stuur naar parent (lakopmaat.nl) om toe te voegen aan winkelwagen
     window.parent.postMessage(
-      { type: "LOM_BULK_ADD", items: items.map(i => ({ id: i.ccvProductId, qty: i.qty || 1 })) },
+      { type: "LOM_BULK_ADD", items: payload },
       SHOP_ORIGIN
     );
 
-    // wacht op response (ok/fail)
+    // Wacht op resultaat
     await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("Geen antwoord van winkelwagen script (timeout).")), 15000);
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Geen antwoord van winkelwagen script (timeout)."));
+      }, 20000);
 
       function onMsg(e){
         if(e.origin !== SHOP_ORIGIN) return;
-        if(!e.data || e.data.type !== "LOM_BULK_ADD_RESULT") return;
-        window.removeEventListener("message", onMsg);
-        clearTimeout(t);
-        if(e.data.ok) resolve();
-        else reject(new Error(e.data.error || "Toevoegen mislukt"));
+        const d = e.data || {};
+        if(d.type !== "LOM_BULK_ADD_RESULT") return;
+        cleanup();
+        d.ok ? resolve() : reject(new Error(d.error || "Toevoegen mislukt"));
       }
+
+      function cleanup(){
+        clearTimeout(timeout);
+        window.removeEventListener("message", onMsg);
+      }
+
       window.addEventListener("message", onMsg);
     });
   }
