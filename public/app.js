@@ -58,7 +58,18 @@
       lastSent = h;
 
       window.parent.postMessage({ type: "SRW_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
-      window.parent.postMessage({ type: "LOM_IFRAME_HEIGHT", height: h }, PARENT_ORIGIN);
+      window.parent.postMessage(
+  {
+    type: "LOM_IFRAME_HEIGHT",
+    height: Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+      document.documentElement.offsetHeight,
+      document.body.offsetHeight
+    )
+  },
+  "https://www.lakopmaat.nl"
+);
     } catch (e) {}
   }
 
